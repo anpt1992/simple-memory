@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "simple-memory": {
+      "command": "wsl",
+      "args": [
+        "-e", 
+        "dotnet",
+        "run",
+        "--project",
+        "/root/projects/simple-memory/SimpleMemory"
+      ],
+      "env": {}
+    }
+  }
+}
