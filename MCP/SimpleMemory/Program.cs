@@ -16,7 +16,8 @@ class Program
 
 public class McpServer
 {
-    private readonly Dictionary<string, object> _memory = new();
+    private readonly HttpClient _httpClient = new();
+    private readonly string _apiBaseUrl = "http://localhost:5000/api/memory";
     
     public async Task RunAsync()
     {
@@ -176,135 +177,52 @@ public class McpServer
             });
         }
         
-        return Task.FromResult(toolCall.Name switch
-        {
-            "store_memory" => HandleStoreMemory(request, toolCall),
-            "get_memory" => HandleGetMemory(request, toolCall),
-            "list_memory" => HandleListMemory(request),
-            "delete_memory" => HandleDeleteMemory(request, toolCall),
-            "clear_memory" => HandleClearMemory(request),
-            _ => new McpResponse
-            {
-                Id = request.Id,
-                Error = new McpError { Code = -32602, Message = "Unknown tool" }
-            }
-        });
+        return ForwardToolCallAsync(request, toolCall);
     }
     
-    private McpResponse HandleStoreMemory(McpRequest request, ToolCallParams toolCall)
+    private async Task<McpResponse> ForwardToolCallAsync(McpRequest request, ToolCallParams toolCall)
     {
         try
         {
-            var args = JsonSerializer.Deserialize<Dictionary<string, object>>(toolCall.Arguments?.ToString() ?? "{}");
-            if (args == null || !args.ContainsKey("key") || !args.ContainsKey("value"))
+            switch (toolCall.Name)
             {
-                return new McpResponse
-                {
-                    Id = request.Id,
-                    Error = new McpError { Code = -32602, Message = "Missing required parameters: key and value" }
-                };
-            }
-            
-            var key = args["key"]?.ToString() ?? "";
-            var value = args["value"]?.ToString() ?? "";
-            
-            if (string.IsNullOrEmpty(key))
-            {
-                return new McpResponse
-                {
-                    Id = request.Id,
-                    Error = new McpError { Code = -32602, Message = "Key cannot be empty" }
-                };
-            }
-            
-            _memory[key] = value;
-            
-            return new McpResponse
-            {
-                Id = request.Id,
-                Result = new
-                {
-                    content = new[]
+                case "store_memory":
+                    var storeArgs = JsonSerializer.Deserialize<Dictionary<string, object>>(toolCall.Arguments?.ToString() ?? "{}");
+                    var storeResp = await _httpClient.PostAsync(
+                        _apiBaseUrl + "/store",
+                        new StringContent(JsonSerializer.Serialize(new { Key = storeArgs?["key"], Value = storeArgs?["value"] }), System.Text.Encoding.UTF8, "application/json")
+                    );
+                    var storeContent = await storeResp.Content.ReadAsStringAsync();
+                    return new McpResponse { Id = request.Id, Result = JsonSerializer.Deserialize<object>(storeContent) };
+
+                case "get_memory":
+                    var getArgs = JsonSerializer.Deserialize<Dictionary<string, object>>(toolCall.Arguments?.ToString() ?? "{}");
+                    var getResp = await _httpClient.GetAsync(_apiBaseUrl + $"/{getArgs?["key"]}");
+                    var getContent = await getResp.Content.ReadAsStringAsync();
+                    return new McpResponse { Id = request.Id, Result = JsonSerializer.Deserialize<object>(getContent) };
+
+                case "list_memory":
+                    var listResp = await _httpClient.GetAsync(_apiBaseUrl + "/list");
+                    var listContent = await listResp.Content.ReadAsStringAsync();
+                    return new McpResponse { Id = request.Id, Result = JsonSerializer.Deserialize<object>(listContent) };
+
+                case "delete_memory":
+                    var delArgs = JsonSerializer.Deserialize<Dictionary<string, object>>(toolCall.Arguments?.ToString() ?? "{}");
+                    var delResp = await _httpClient.DeleteAsync(_apiBaseUrl + $"/{delArgs?["key"]}");
+                    var delContent = await delResp.Content.ReadAsStringAsync();
+                    return new McpResponse { Id = request.Id, Result = JsonSerializer.Deserialize<object>(delContent) };
+
+                case "clear_memory":
+                    var clearResp = await _httpClient.DeleteAsync(_apiBaseUrl + "/clear");
+                    var clearContent = await clearResp.Content.ReadAsStringAsync();
+                    return new McpResponse { Id = request.Id, Result = JsonSerializer.Deserialize<object>(clearContent) };
+
+                default:
+                    return new McpResponse
                     {
-                        new
-                        {
-                            type = "text",
-                            text = $"Stored value '{value}' under key '{key}'"
-                        }
-                    }
-                }
-            };
-        }
-        catch (Exception ex)
-        {
-            return new McpResponse
-            {
-                Id = request.Id,
-                Error = new McpError { Code = -32603, Message = $"Internal error: {ex.Message}" }
-            };
-        }
-    }
-    
-    private McpResponse HandleGetMemory(McpRequest request, ToolCallParams toolCall)
-    {
-        try
-        {
-            var args = JsonSerializer.Deserialize<Dictionary<string, object>>(toolCall.Arguments?.ToString() ?? "{}");
-            if (args == null || !args.ContainsKey("key"))
-            {
-                return new McpResponse
-                {
-                    Id = request.Id,
-                    Error = new McpError { Code = -32602, Message = "Missing required parameter: key" }
-                };
-            }
-            
-            var key = args["key"]?.ToString() ?? "";
-            
-            if (string.IsNullOrEmpty(key))
-            {
-                return new McpResponse
-                {
-                    Id = request.Id,
-                    Error = new McpError { Code = -32602, Message = "Key cannot be empty" }
-                };
-            }
-            
-            if (_memory.TryGetValue(key, out var value))
-            {
-                return new McpResponse
-                {
-                    Id = request.Id,
-                    Result = new
-                    {
-                        content = new[]
-                        {
-                            new
-                            {
-                                type = "text",
-                                text = $"Value for key '{key}': {value}"
-                            }
-                        }
-                    }
-                };
-            }
-            else
-            {
-                return new McpResponse
-                {
-                    Id = request.Id,
-                    Result = new
-                    {
-                        content = new[]
-                        {
-                            new
-                            {
-                                type = "text",
-                                text = $"No value found for key '{key}'"
-                            }
-                        }
-                    }
-                };
+                        Id = request.Id,
+                        Error = new McpError { Code = -32602, Message = "Unknown tool" }
+                    };
             }
         }
         catch (Exception ex)
@@ -316,122 +234,8 @@ public class McpServer
             };
         }
     }
-    
-    private McpResponse HandleListMemory(McpRequest request)
-    {
-        var keys = string.Join(", ", _memory.Keys);
-        
-        return new McpResponse
-        {
-            Id = request.Id,
-            Result = new
-            {
-                content = new[]
-                {
-                    new
-                    {
-                        type = "text",
-                        text = _memory.Count == 0 ? "No keys stored in memory" : $"Keys in memory: {keys}"
-                    }
-                }
-            }
-        };
     }
     
-    private McpResponse HandleDeleteMemory(McpRequest request, ToolCallParams toolCall)
-    {
-        try
-        {
-            var args = JsonSerializer.Deserialize<Dictionary<string, object>>(toolCall.Arguments?.ToString() ?? "{}");
-            if (args == null || !args.ContainsKey("key"))
-            {
-                return new McpResponse
-                {
-                    Id = request.Id,
-                    Error = new McpError { Code = -32602, Message = "Missing required parameter: key" }
-                };
-            }
-            
-            var key = args["key"]?.ToString() ?? "";
-            
-            if (string.IsNullOrEmpty(key))
-            {
-                return new McpResponse
-                {
-                    Id = request.Id,
-                    Error = new McpError { Code = -32602, Message = "Key cannot be empty" }
-                };
-            }
-            
-            if (_memory.Remove(key))
-            {
-                return new McpResponse
-                {
-                    Id = request.Id,
-                    Result = new
-                    {
-                        content = new[]
-                        {
-                            new
-                            {
-                                type = "text",
-                                text = $"Deleted key '{key}' from memory"
-                            }
-                        }
-                    }
-                };
-            }
-            else
-            {
-                return new McpResponse
-                {
-                    Id = request.Id,
-                    Result = new
-                    {
-                        content = new[]
-                        {
-                            new
-                            {
-                                type = "text",
-                                text = $"Key '{key}' not found in memory"
-                            }
-                        }
-                    }
-                };
-            }
-        }
-        catch (Exception ex)
-        {
-            return new McpResponse
-            {
-                Id = request.Id,
-                Error = new McpError { Code = -32603, Message = $"Internal error: {ex.Message}" }
-            };
-        }
-    }
-    
-    private McpResponse HandleClearMemory(McpRequest request)
-    {
-        var count = _memory.Count;
-        _memory.Clear();
-        
-        return new McpResponse
-        {
-            Id = request.Id,
-            Result = new
-            {
-                content = new[]
-                {
-                    new
-                    {
-                        type = "text",
-                        text = $"Cleared {count} items from memory"
-                    }
-                }
-            }
-        };
-    }
-}
 
 public class McpRequest
 {
