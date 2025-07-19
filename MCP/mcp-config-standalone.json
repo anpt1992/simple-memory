@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "simple-memory": {
-      "command": "/root/projects/simple-memory/SimpleMemory/bin/Release/net8.0/linux-x64/publish/SimpleMemory",
-      "args": [],
-      "env": {}
-    }
-  }
-}
