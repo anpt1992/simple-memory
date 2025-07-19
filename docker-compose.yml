@@ -1,0 +1,19 @@
+version: '3.8'
+services:
+  simple-memory-server:
+    build:
+      context: ./SimpleMemoryServer
+    ports:
+      - "5135:5135"
+    depends_on:
+      - qdrant
+    environment:
+      - ASPNETCORE_URLS=http://0.0.0.0:5135
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+volumes:
+  qdrant_data:
