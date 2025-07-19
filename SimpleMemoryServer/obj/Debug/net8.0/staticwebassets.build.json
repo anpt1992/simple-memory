@@ -1,0 +1,11 @@
+{
+  "Version": 1,
+  "Hash": "LhcKSQwjfV0vmQzrKNYfbDb5F9Nop1715D/J3HcJ0ls=",
+  "Source": "SimpleMemoryServer",
+  "BasePath": "_content/SimpleMemoryServer",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": []
+}
