@@ -9,6 +9,8 @@ services:
       - qdrant
     environment:
       - ASPNETCORE_URLS=http://0.0.0.0:5135
+    volumes:
+      - .:/app
   qdrant:
     image: qdrant/qdrant:latest
     ports:

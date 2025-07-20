@@ -1,4 +1,6 @@
 .vscode
+.clinerules
 .github
-*/*/bin
-*/*/obj
+*/bin
+*/obj/*
+*/.idea
