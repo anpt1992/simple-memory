@@ -1,7 +1,7 @@
 {
   "name": "Simple Memory Dev Container",
   "dockerComposeFile": [
-    "../docker-compose.yml"
+    "docker-compose.yml"
   ],
   "service": "simple-memory-server",
   "workspaceFolder": "/app",
@@ -16,5 +16,6 @@
       ]
     }
   },
-  "postCreateCommand": "dotnet restore ./SimpleMemoryServer/SimpleMemoryServer.csproj"
+  "postCreateCommand": "dotnet restore ./SimpleMemoryServer/SimpleMemoryServer.csproj",
+  "shutdownAction": "stopCompose"
 }
